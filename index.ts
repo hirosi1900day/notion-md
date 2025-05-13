@@ -211,7 +211,7 @@ async function saveDatabaseAsMarkdown(databaseId: string, database: DatabaseData
     const filePath = path.join(outputDir, fileName);
     
     // ファイルヘッダーを作成
-    const header = `# ${title || 'Notionデータベース'}\n\n`;
+    const header = `# ${title}\n\n`;
     const timestamp = new Date().toLocaleString('ja-JP');
     const footer = `\n\n---\n\n_このファイルは ${timestamp} に生成されました_\n`;
     
@@ -240,8 +240,23 @@ async function convertNotionToMarkdown(pageId: string, options: ExportOptions = 
     
     // ページの情報を取得
     const pageInfo = await notion.pages.retrieve({ page_id: pageId });
-    // 型アサーションを使用してタイトルにアクセス
-    const pageTitle = (pageInfo as any).properties?.title?.title?.[0]?.plain_text || 'タイトルなし';
+    
+    // タイトルを取得するロジックを修正
+    let pageTitle = 'タイトルなし';
+    
+    // 型アサーションを使って型エラーを回避
+    const properties = (pageInfo as any).properties;
+    if (properties) {
+      // プロパティをループして「title」タイプのプロパティを探す
+      for (const key in properties) {
+        const property = properties[key];
+        if (property.type === 'title' && property.title && property.title.length > 0) {
+          pageTitle = property.title[0].plain_text;
+          break;
+        }
+      }
+    }
+    
     console.log(`ページタイトル: ${pageTitle}`);
     
     // マークダウンブロックを取得
@@ -319,11 +334,13 @@ async function convertNotionToMarkdown(pageId: string, options: ExportOptions = 
       pageContent += dbLinks;
     }
     
-    // タイムスタンプを追加
+    // ファイルヘッダーを作成
+    const header = `# ${pageTitle}\n\n`;
     const timestamp = new Date().toLocaleString('ja-JP');
-    pageContent += `\n\n---\n\n_このファイルは ${timestamp} に生成されました_\n`;
+    const footer = `\n\n---\n\n_このファイルは ${timestamp} に生成されました_\n`;
     
-    fs.writeFileSync(filePath, pageContent);
+    // ファイルに書き込み
+    fs.writeFileSync(filePath, header + pageContent + footer);
     
     console.log(`マークダウンファイルが作成されました: ${filePath}`);
     return {
